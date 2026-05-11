@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FlowStock</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/lucide@latest"></script>
+  </head>
+  <body>
+    <div class="glass-background"></div>
+
+    <nav class="navbar">
+      <div class="logo">
+        <i data-lucide="cloud" class="logo-icon"></i>
+        <span>FlowStock</span>
+      </div>
+      <div class="nav-actions">
+        <button id="add-btn" class="btn-primary">
+          <i data-lucide="plus"></i> Nuevo Producto
+        </button>
+      </div>
+    </nav>
+
+    <main class="container">
+      <header class="dashboard-header">
+        <h1>Gestión de Inventario</h1>
+        <p>Monitoreo en tiempo real de recursos para FlowStock.</p>
+      </header>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon purple"><i data-lucide="package"></i></div>
+          <div class="stat-info">
+            <span class="stat-label">Total Productos</span>
+            <span id="total-items" class="stat-value">0</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><i data-lucide="trending-up"></i></div>
+          <div class="stat-info">
+            <span class="stat-label">Valor Inventario</span>
+            <span id="total-value" class="stat-value">$0 CLP</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange">
+            <i data-lucide="alert-triangle"></i>
+          </div>
+          <div class="stat-info">
+            <span class="stat-label">Bajo Stock</span>
+            <span id="low-stock" class="stat-value">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="inventory-table-container">
+        <div class="table-header">
+          <div class="search-box">
+            <i data-lucide="search"></i>
+            <input
+              type="text"
+              id="search-input"
+              placeholder="Buscar producto..."
+            />
+          </div>
+        </div>
+        <table class="inventory-table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Categoría</th>
+              <th>Cantidad</th>
+              <th>Precio</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-body">
+            <!-- Data will be loaded here -->
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- Modal Form -->
+    <div id="modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-title">Añadir Producto</h2>
+          <button id="close-modal" class="btn-icon">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="product-form">
+          <input type="hidden" id="product-id" />
+          <div class="form-group">
+            <label for="nombre">Nombre del Producto</label>
+            <input
+              type="text"
+              id="nombre"
+              required
+              placeholder="Ej. Servidor EC2 Large"
+            />
+          </div>
+          <div class="form-group">
+            <label for="categoria">Categoría</label>
+            <select id="categoria">
+              <option value="Hardware">Hardware</option>
+              <option value="Software">Software</option>
+              <option value="Licencia">Licencia</option>
+              <option value="Servicio Cloud">Servicio Cloud</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cantidad">Cantidad</label>
+              <input type="number" id="cantidad" required min="0" value="0" />
+            </div>
+            <div class="form-group">
+              <label for="precio">Precio (USD)</label>
+              <input
+                type="number"
+                id="precio"
+                step="0.01"
+                required
+                min="0"
+                value="0.00"
+              />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn-primary full-width">
+              Guardar Cambios
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script src="app.js"></script>
+    <script>
+      lucide.createIcons();
+    </script>
+  </body>
+</html>
