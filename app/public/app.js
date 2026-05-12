@@ -1,164 +1,293 @@
 const API_URL = "/api/items";
 
-// Elements
-const inventoryBody = document.getElementById("inventory-body");
-const productForm = document.getElementById("product-form");
-const modal = document.getElementById("modal");
-const addBtn = document.getElementById("add-btn");
-const closeModal = document.getElementById("close-modal");
-const searchInput = document.getElementById("search-input");
-
-// Stats Elements
-const totalItemsEl = document.getElementById("total-items");
-const totalValueEl = document.getElementById("total-value");
-const lowStockEl = document.getElementById("low-stock");
+// ─── DOM Elements ──────────────────────────────────────────────────────────────
+const inventoryBody  = document.getElementById("inventory-body");
+const productForm    = document.getElementById("product-form");
+const modal          = document.getElementById("modal");
+const addBtn         = document.getElementById("add-btn");
+const closeModal     = document.getElementById("close-modal");
+const searchInput    = document.getElementById("search-input");
+const totalItemsEl   = document.getElementById("total-items");
+const totalValueEl   = document.getElementById("total-value");
+const lowStockEl     = document.getElementById("low-stock");
+const submitBtn      = productForm.querySelector("[type=submit]");
 
 let inventory = [];
 
-// Fetch and Render
-async function fetchInventory() {
+// ─── XSS-safe text node helper ────────────────────────────────────────────────
+function escapeHtml(value) {
+  const div = document.createElement("div");
+  div.appendChild(document.createTextNode(String(value ?? "")));
+  return div.innerHTML;
+}
+
+// ─── API helpers ───────────────────────────────────────────────────────────────
+
+/**
+ * Wrapper around fetch that always returns { ok, data }.
+ * `data` is the parsed JSON body (may contain { error: "..." } on failure).
+ */
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+  });
+
+  let data;
   try {
-    const res = await fetch(API_URL);
-    inventory = await res.json();
+    data = await res.json();
+  } catch {
+    data = { error: `Error del servidor (HTTP ${res.status})` };
+  }
+
+  return { ok: res.ok, status: res.status, data };
+}
+
+// ─── Fetch & Render ────────────────────────────────────────────────────────────
+
+async function fetchInventory() {
+  setTableLoading(true);
+  try {
+    const { ok, data } = await apiFetch(API_URL);
+    if (!ok) {
+      showToast(data.error || "Error al cargar el inventario.", "danger");
+      inventory = [];
+    } else {
+      inventory = Array.isArray(data) ? data : [];
+    }
+  } catch {
+    showToast("No se pudo conectar con el servidor.", "danger");
+    inventory = [];
+  } finally {
+    setTableLoading(false);
     renderInventory(inventory);
     updateStats();
-  } catch (err) {
-    showToast("Error al cargar inventario", "danger");
+  }
+}
+
+function setTableLoading(loading) {
+  if (loading) {
+    inventoryBody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-dim);">
+          Cargando inventario…
+        </td>
+      </tr>`;
   }
 }
 
 function renderInventory(items) {
-  inventoryBody.innerHTML = items
-    .map(
-      (item) => `
-        <tr>
-            <td>
-                <div style="font-weight: 600;">${item.nombre}</div>
-                <div style="font-size: 0.75rem; color: var(--text-dim);">ID: #${item.id}</div>
-            </td>
-            <td><span class="badge">${item.categoria}</span></td>
-            <td>
-                <span style="color: ${item.cantidad < 5 ? "var(--accent-orange)" : "inherit"}">
-                    ${item.cantidad} unidades
-                </span>
-            </td>
-            <td>$${parseFloat(item.precio).toLocaleString("es-CL")} CLP</td>
-            <td>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button onclick="editItem(${item.id})" class="btn-icon"><i data-lucide="edit-2"></i></button>
-                    <button onclick="deleteItem(${item.id})" class="btn-icon btn-delete"><i data-lucide="trash-2"></i></button>
-                </div>
-            </td>
-        </tr>
-    `,
-    )
-    .join("");
+  if (items.length === 0) {
+    inventoryBody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-dim);">
+          Sin productos registrados.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  // Build rows using DOM API to avoid XSS — no innerHTML with user data
+  inventoryBody.innerHTML = "";
+  items.forEach((item) => {
+    const cantidad   = Number(item.cantidad) || 0;
+    const precio     = parseFloat(item.precio) || 0;
+    const isLowStock = cantidad < 5;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>
+        <div style="font-weight:600;">${escapeHtml(item.nombre)}</div>
+        <div style="font-size:0.75rem; color:var(--text-dim);">ID: #${escapeHtml(item.id)}</div>
+      </td>
+      <td><span class="badge">${escapeHtml(item.categoria)}</span></td>
+      <td>
+        <span style="color:${isLowStock ? "var(--accent-orange)" : "inherit"}">
+          ${escapeHtml(cantidad)} unidades
+        </span>
+      </td>
+      <td>$${precio.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP</td>
+      <td>
+        <div style="display:flex; gap:0.5rem;">
+          <button class="btn-icon btn-edit"   data-id="${escapeHtml(item.id)}" title="Editar"><i data-lucide="edit-2"></i></button>
+          <button class="btn-icon btn-delete" data-id="${escapeHtml(item.id)}" title="Eliminar"><i data-lucide="trash-2"></i></button>
+        </div>
+      </td>`;
+    inventoryBody.appendChild(tr);
+  });
+
+  // Attach events via delegation-safe per-button listeners (no inline onclick)
+  inventoryBody.querySelectorAll(".btn-edit").forEach((btn) => {
+    btn.addEventListener("click", () => editItem(parseInt(btn.dataset.id, 10)));
+  });
+  inventoryBody.querySelectorAll(".btn-delete").forEach((btn) => {
+    btn.addEventListener("click", () => deleteItem(parseInt(btn.dataset.id, 10)));
+  });
+
   lucide.createIcons();
 }
 
 function updateStats() {
   const total = inventory.length;
   const value = inventory.reduce(
-    (acc, item) => acc + item.cantidad * item.precio,
-    0,
+    (acc, item) => acc + (Number(item.cantidad) || 0) * (parseFloat(item.precio) || 0),
+    0
   );
-  const low = inventory.filter((item) => item.cantidad < 5).length;
+  const low = inventory.filter((item) => Number(item.cantidad) < 5).length;
 
   totalItemsEl.textContent = total;
   totalValueEl.textContent = `$${value.toLocaleString("es-CL", { maximumFractionDigits: 0 })} CLP`;
-  lowStockEl.textContent = low;
+  lowStockEl.textContent   = low;
 }
 
-// Search
+// ─── Search ────────────────────────────────────────────────────────────────────
+
 searchInput.addEventListener("input", (e) => {
-  const term = e.target.value.toLowerCase();
-  const filtered = inventory.filter(
-    (item) =>
-      item.nombre.toLowerCase().includes(term) ||
-      item.categoria.toLowerCase().includes(term),
-  );
+  const term = e.target.value.toLowerCase().trim();
+  const filtered = inventory.filter((item) => {
+    const nombre    = (item.nombre    || "").toLowerCase();
+    const categoria = (item.categoria || "").toLowerCase();
+    return nombre.includes(term) || categoria.includes(term);
+  });
   renderInventory(filtered);
 });
 
-// Create / Update
+// ─── Create / Update ───────────────────────────────────────────────────────────
+
 productForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const id = document.getElementById("product-id").value;
-  const data = {
-    nombre: document.getElementById("nombre").value,
-    categoria: document.getElementById("categoria").value,
-    cantidad: parseInt(document.getElementById("cantidad").value),
-    precio: parseFloat(document.getElementById("precio").value),
+
+  const id       = document.getElementById("product-id").value;
+  const nombre   = document.getElementById("nombre").value.trim();
+  const categoria = document.getElementById("categoria").value;
+  const cantidad  = document.getElementById("cantidad").value;
+  const precio    = document.getElementById("precio").value;
+
+  // Client-side validation mirrors server rules
+  if (!nombre) {
+    showToast("El nombre del producto es obligatorio.", "danger");
+    return;
+  }
+  if (nombre.length > 100) {
+    showToast("El nombre no puede superar los 100 caracteres.", "danger");
+    return;
+  }
+  const parsedCantidad = parseInt(cantidad, 10);
+  if (isNaN(parsedCantidad) || parsedCantidad < 0) {
+    showToast("La cantidad debe ser un número entero ≥ 0.", "danger");
+    return;
+  }
+  const parsedPrecio = parseFloat(precio);
+  if (isNaN(parsedPrecio) || parsedPrecio < 0) {
+    showToast("El precio debe ser un número ≥ 0.", "danger");
+    return;
+  }
+
+  const payload = {
+    nombre,
+    categoria,
+    cantidad: parsedCantidad,
+    precio:   parsedPrecio,
   };
 
-  try {
-    const method = id ? "PUT" : "POST";
-    const url = id ? `${API_URL}/${id}` : API_URL;
+  const method = id ? "PUT" : "POST";
+  const url    = id ? `${API_URL}/${id}` : API_URL;
 
-    const res = await fetch(url, {
+  setSubmitLoading(true);
+  try {
+    const { ok, data } = await apiFetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
 
-    if (res.ok) {
-      showToast(id ? "Producto actualizado" : "Producto creado");
+    if (ok) {
+      showToast(id ? "Producto actualizado correctamente." : "Producto creado correctamente.");
       hideModal();
       fetchInventory();
+    } else {
+      // Show the server's validation message
+      showToast(data.error || "Error al guardar el producto.", "danger");
     }
-  } catch (err) {
-    showToast("Error al guardar", "danger");
+  } catch {
+    showToast("No se pudo conectar con el servidor.", "danger");
+  } finally {
+    setSubmitLoading(false);
   }
 });
 
-// Delete
+function setSubmitLoading(loading) {
+  submitBtn.disabled     = loading;
+  submitBtn.textContent  = loading ? "Guardando…" : "Guardar Cambios";
+}
+
+// ─── Delete ────────────────────────────────────────────────────────────────────
+
 async function deleteItem(id) {
-  if (!confirm("¿Estás seguro de eliminar este producto?")) return;
+  if (!confirm("¿Estás seguro de eliminar este producto? Esta acción no se puede deshacer.")) return;
   try {
-    await fetch(`${API_URL}/${id}`, { method: "DELETE" });
-    showToast("Producto eliminado");
-    fetchInventory();
-  } catch (err) {
-    showToast("Error al eliminar", "danger");
+    const { ok, data } = await apiFetch(`${API_URL}/${id}`, { method: "DELETE" });
+    if (ok) {
+      showToast("Producto eliminado correctamente.");
+      fetchInventory();
+    } else {
+      showToast(data.error || "Error al eliminar el producto.", "danger");
+    }
+  } catch {
+    showToast("No se pudo conectar con el servidor.", "danger");
   }
 }
 
-// UI Helpers
+// ─── Edit ──────────────────────────────────────────────────────────────────────
+
 function editItem(id) {
   const item = inventory.find((i) => i.id === id);
-  document.getElementById("product-id").value = item.id;
-  document.getElementById("nombre").value = item.nombre;
-  document.getElementById("categoria").value = item.categoria;
-  document.getElementById("cantidad").value = item.cantidad;
-  document.getElementById("precio").value = item.precio;
-
+  if (!item) {
+    showToast("Producto no encontrado.", "danger");
+    return;
+  }
+  document.getElementById("product-id").value   = item.id;
+  document.getElementById("nombre").value        = item.nombre;
+  document.getElementById("categoria").value     = item.categoria;
+  document.getElementById("cantidad").value      = item.cantidad;
+  document.getElementById("precio").value        = parseFloat(item.precio).toFixed(2);
   document.getElementById("modal-title").textContent = "Editar Producto";
+  submitBtn.textContent = "Guardar Cambios";
   modal.classList.add("active");
 }
 
-function showToast(msg, type = "success") {
-  const container = document.getElementById("toast-container");
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.textContent = msg;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
-}
+// ─── Modal ─────────────────────────────────────────────────────────────────────
 
 addBtn.onclick = () => {
   productForm.reset();
-  document.getElementById("product-id").value = "";
+  document.getElementById("product-id").value        = "";
   document.getElementById("modal-title").textContent = "Añadir Producto";
+  submitBtn.textContent = "Guardar Cambios";
   modal.classList.add("active");
 };
 
 function hideModal() {
   modal.classList.remove("active");
+  productForm.reset();
+  setSubmitLoading(false);
 }
-closeModal.onclick = hideModal;
-window.onclick = (e) => {
-  if (e.target === modal) hideModal();
-};
 
-// Init
+closeModal.onclick = hideModal;
+window.addEventListener("click", (e) => {
+  if (e.target === modal) hideModal();
+});
+
+// ─── Toast ─────────────────────────────────────────────────────────────────────
+
+function showToast(msg, type = "success") {
+  const container = document.getElementById("toast-container");
+  const toast     = document.createElement("div");
+  toast.className  = `toast ${type}`;
+  // Use textContent — never innerHTML — to avoid XSS in toast messages
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────────
+
 fetchInventory();
