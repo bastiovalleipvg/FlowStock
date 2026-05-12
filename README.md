@@ -1,4 +1,4 @@
-# FlowStock - B2B Cloud Inventory Management 📦☁️
+# FlowStock - B2B Cloud 📦☁️
 
 ![AWS](https://img.shields.io/badge/AWS-EC2%20%7C%20RDS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
