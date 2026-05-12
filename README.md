@@ -1,11 +1,11 @@
-# CloudStock Pro - CloudSolutions SPA
+# FlowStock - CloudSolutions SPA
 
 ![Versión](https://img.shields.io/badge/version-1.0.0-blue)
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![AWS](https://img.shields.io/badge/aws-compatible-orange)
 
 ## Descripción
-CloudStock Pro es una solución integral de gestión de inventario diseñada para **CloudSolutions SPA**. La aplicación permite realizar operaciones CRUD (Crear, Leer, Actualizar, Borrar) sobre activos de infraestructura cloud, con una interfaz moderna y despliegue automatizado mediante contenedores.
+FlowStock es una solución integral de gestión de inventario diseñada para **CloudSolutions SPA**. La aplicación permite realizar operaciones CRUD (Crear, Leer, Actualizar, Borrar) sobre activos de infraestructura cloud, con una interfaz moderna y despliegue automatizado mediante contenedores.
 
 ## Arquitectura de la Solución (AWS)
 
@@ -38,8 +38,8 @@ graph TD
 
 1. **Clonar el repositorio:**
    ```bash
-   git clone https://github.com/tu-usuario/cloudstock-pro.git
-   cd cloudstock-pro
+   git clone https://github.com/bastiovalleipvg/FlowStock.git
+   cd FlowStock
    ```
 
 2. **Levantar la infraestructura:**
